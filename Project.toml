@@ -1,7 +1,7 @@
 name = "Multibreak"
 uuid = "2db7fbaf-c681-4fb2-9fc5-9b884bdd742d"
 authors = ["Gunnar Farnebäck <gunnar@lysator.liu.se>"]
-version = "0.1"
+version = "0.2.0"
 
 [compat]
 julia = "1"

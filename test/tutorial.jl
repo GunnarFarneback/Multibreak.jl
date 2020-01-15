@@ -300,3 +300,77 @@ end
     end
     @test n == 10
 end
+
+# So there's also a kind of loop called `while`, huh? We had better try
+# that as well.
+@testset MBTestSet "nested while loops" begin
+    n = 0
+
+    @multibreak begin
+        while true
+            while true
+                n += 1
+                break; break
+            end
+        end
+    end
+    @test n == 1
+
+    @multibreak begin
+        i = 0
+        while i <= 5
+            i += 1
+            j = 1
+            while j <= 3
+                n += 1
+                if i + j > 4
+                    break; continue
+                end
+                j += 1
+            end
+            i += 1
+        end
+    end
+    @test n == 9
+end
+
+# `for` and `while` loops can be mixed.
+@testset MBTestSet "mixed for and while loops" begin
+    n = 0
+
+    @multibreak begin
+        i = 1
+        while i <= 3
+            i += 1
+            for j = i:5
+                n += 1
+                if i + j > 7
+                    break; break
+                end
+                if i + j > 5
+                    break; continue
+                end
+            end
+        end
+    end
+    @test n == 5
+end
+
+# A word of warning. The `@multibreak` macro also transforms single
+# `break` and `continue` to `@goto` and `@label`. A side effect of the
+# implementation is that dead code can come alive. The macro could be
+# refined to place the `@goto` at the position of the first
+# `break`/`continue` rather than at the end of the block but it's not
+# really worth the added complexity. Just don't do this in code where
+# you need the `@multibreak`.
+@testset MBTestSet "zombie code" begin
+    I_am_a_zombie = false
+
+    @multibreak begin
+        while true
+            break
+            I_am_a_zombie = true
+        end
+    end
+    @test I_am_a_zombie
+end

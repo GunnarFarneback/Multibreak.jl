@@ -20,7 +20,8 @@ for the full documentation.
 module Multibreak
 export @multibreak
 
-function multibreak_transform_break_and_continue(args, active_loops)
+function multibreak_transform_break_and_continue(args, break_labels,
+                                                 continue_labels)
     out = Any[]
     nbreak = 0
     ncontinue = 0
@@ -42,40 +43,47 @@ function multibreak_transform_break_and_continue(args, active_loops)
         end
     end
     n = nbreak + ncontinue
-    if  n > length(active_loops)
+    if  n > length(break_labels)
         push!(out, :(error("multibreak: not enough nested loops for requested multiple break/continue")))
     elseif n > 0
         push!(out, Expr(:symbolicgoto,
-                        Symbol("loop",
-                               active_loops[end - n + 1],
-                               ncontinue == 0 ? "break" : "continue")))
+                        ifelse(ncontinue == 0,
+                               break_labels[end - n + 1],
+                               continue_labels[end - n + 1])))
     end
     return out
 end
 
-function multibreak_transform_ast(ast, loop_counter = [1], active_loops = Int[])
+function multibreak_transform_ast(ast, loop_counter = [1],
+                                  break_labels = Symbol[],
+                                  continue_labels = Symbol[])
     if typeof(ast) != Expr
         return ast
     end
 
-    if ast.head == :for
+    if ast.head == :for || ast.head == :while
         n = loop_counter[1]
-        active_loops = vcat(active_loops, n)
+        break_labels = push!(copy(break_labels),
+                             gensym(Symbol("loop", n, "break")))
+        continue_labels = push!(copy(continue_labels),
+                                gensym(Symbol("loop", n, "continue")))
         loop_counter[1] += 1
     end
 
-    args = [multibreak_transform_ast(arg, loop_counter, active_loops) for arg in ast.args]
+    args = [multibreak_transform_ast(arg, loop_counter, break_labels,
+                                     continue_labels) for arg in ast.args]
 
-    if ast.head == :for
+    if ast.head == :for || ast.head == :while
         arg2 = Expr(:block,
                     args[2],
-                    Expr(:symboliclabel, Symbol("loop", n, "continue")))
+                    Expr(:symboliclabel, last(continue_labels)))
         return Expr(:block,
-                    Expr(:for, args[1], arg2),
-                    Expr(:symboliclabel, Symbol("loop", n, "break")))
+                    Expr(ast.head, args[1], arg2),
+                    Expr(:symboliclabel, last(break_labels)))
     elseif ast.head == :block
         return Expr(:block,
-                    multibreak_transform_break_and_continue(args, active_loops)...)
+                    multibreak_transform_break_and_continue(args, break_labels,
+                                                            continue_labels)...)
     end
 
     return Expr(ast.head, args...)
