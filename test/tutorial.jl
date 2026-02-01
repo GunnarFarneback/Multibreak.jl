@@ -66,8 +66,13 @@ end
 
 # This shows how the previous example can be coded with the `goto` and
 # `label` macros instead of the `@multibreak` macro. This is in fact
-# how the `@multibreak` macro works internally and should make the
-# semantics clear.
+# how the `@multibreak` macro works internally in Julia 1.0 - 1.13 and
+# should make the semantics clear. In Julia 1.14 and later a different
+# mechanism is used, which is discussed in tutorial_part2.
+#
+# To be more precise this also changed with Multibreak 1.0. Single
+# break and continue are left as they are instead of being transformed
+# into goto, but the effect is the same.
 @testset MBTestSet "goto and label" begin
     out = []
     for i = 1:5
@@ -256,11 +261,10 @@ end
     end
 end
 
-# Note, in sufficiently simple cases, nested loops can be written as a
-# single for statement with multiple variables. In that case a single
-# `break` breaks out of all the loops whereas a single `continue`
-# continues the inner loop. If that is enough, there is no need to
-# involve the `@multibreak` macro.
+# Nested loops can also be written as a single for statement with
+# multiple variables. In that case a single `break` breaks out of all
+# the loops whereas a single `continue` continues the inner loop. If
+# that is enough, there is no need to involve the `@multibreak` macro.
 @testset MBTestSet "single loop with multiple variables" begin
     n = 0
     for i = 1:5, j = 1:3
@@ -282,7 +286,8 @@ end
 end
 
 # Naturally for loops with multiple variables can in turn be nested,
-# in which case the `@multibreak` macro can be utilized.
+# in which case the `@multibreak` macro can be utilized. Each `for`
+# statement is considered as a unit for multibreaking.
 @testset MBTestSet "nested loops with multiple variables" begin
     n = 0
     @multibreak begin
@@ -356,21 +361,33 @@ end
     @test n == 5
 end
 
-# A word of warning. The `@multibreak` macro also transforms single
-# `break` and `continue` to `@goto` and `@label`. A side effect of the
-# implementation is that dead code can come alive. The macro could be
-# refined to place the `@goto` at the position of the first
-# `break`/`continue` rather than at the end of the block but it's not
-# really worth the added complexity. Just don't do this in code where
-# you need the `@multibreak`.
+# Earlier versions of Multibreak (before 1.0) used to place the jumps
+# for both single and multiple breaks at the end of the block they
+# were defined in, with the side effect that dead code could come
+# alive. This is no longer the case but we keep this test to make sure
+# that it does not regress.
+#
+# (Technically this was a breaking change in Multibreak 1.0, although
+# nobody should write code like this.)
 @testset MBTestSet "zombie code" begin
     I_am_a_zombie = false
-
     @multibreak begin
         while true
             break
             I_am_a_zombie = true
         end
     end
-    @test I_am_a_zombie
+    @test !I_am_a_zombie
+end
+
+# Julia 1.14 introduced labeled break/continue, which can also be used
+# to break out of multiple loops. We want to test that those interact
+# nicely with the multibreak macro. However, that syntax cannot be
+# parsed in earlier Julia versions, so we need to split those
+# tests/examples off to a new file.
+#
+# Please continue the tutorial in test/tutorial_part2.jl.
+@static if VERSION >= v"1.14.0-DEV.1651"
+    Base.Experimental.@set_syntax_version v"1.14"
+    include("tutorial_part2.jl")
 end
